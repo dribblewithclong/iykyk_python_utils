@@ -1,4 +1,4 @@
-# iykyk_python_utils
+# iykyk means if you know you know
 
 ## optional: to contribute or improve the utils
 
