@@ -21,10 +21,13 @@ class AsyncAPIRequest:
     def __init__(
         self,
         limit_rate: float = 64/1,
+        succeed_codes: list = [200],
     ):
         self.logging = Logger()
 
         self.limiter = Limiter(limit_rate)
+
+        self.succeed_codes = succeed_codes
 
         self.req_made = 0
         self.resp_received = 0
@@ -39,6 +42,7 @@ class AsyncAPIRequest:
         return_url: bool = False,
         return_headers: bool = False,
         return_payload: bool = False,
+        resp_as_text: bool = False,
     ) -> dict:
         request = {
             'get': session.get,
@@ -70,18 +74,24 @@ class AsyncAPIRequest:
             headers=request_params.get('headers'),
             json=request_params.get('payload'),
         )
+        status_code = resp.status
         self.resp_received += 1
 
-        try:
-            resp_json = await resp.json()
-        except Exception as e:
+        if status_code in self.succeed_codes:
+            if resp_as_text:
+                resp_json = {
+                    'data': await resp.content.read(),
+                }
+            else:
+                resp_json = await resp.json()
+        else:
             resp_json = {
-                'error_code': resp.status,
+                'error_code': status_code,
                 'error_resp': await resp.content.read(),
-                'error': e,
             }
             self.error_request_params.append(
                 {
+                    'code': status_code,
                     'url': request_params.get('url'),
                     'headers': request_params.get('headers'),
                     'payload': request_params.get('payload'),
@@ -109,6 +119,7 @@ class AsyncAPIRequest:
         return_url: bool = False,
         return_headers: bool = False,
         return_payload: bool = False,
+        resp_as_text: bool = False,
     ) -> dict:
         async with aiohttp.ClientSession(
             cookies=cookies,
@@ -126,15 +137,13 @@ class AsyncAPIRequest:
                         return_url=return_url,
                         return_headers=return_headers,
                         return_payload=return_payload,
+                        resp_as_text=resp_as_text,
                     ) for params in request_params_li
                 )
             )
 
             return {
-                'succeed': [
-                    data for data in output_li
-                    if 'error' not in data.keys()
-                ],
+                'succeed': output_li,
                 'error_request_params': self.error_request_params,
             }
 
@@ -146,6 +155,7 @@ class AsyncAPIRequest:
         return_url: bool = False,
         return_headers: bool = False,
         return_payload: bool = False,
+        resp_as_text: bool = False,
     ) -> dict:
         output_di = asyncio.run(
             self.fetchall(
@@ -155,6 +165,7 @@ class AsyncAPIRequest:
                 return_url,
                 return_headers,
                 return_payload,
+                resp_as_text,
             )
         )
 
