@@ -14,7 +14,7 @@ sys.path.append(
 
 warnings.filterwarnings('ignore')
 
-from logging_iyk.logger import Logger
+from logging_iyk.logger import Logger       # noqa: E402
 
 
 class AsyncAPIRequest:
@@ -35,14 +35,14 @@ class AsyncAPIRequest:
         request_params: dict,
         method: str = 'get',
         return_url: bool = False,
-        return_headers: bool = False,       
+        return_headers: bool = False,
         return_payload: bool = False,
     ) -> dict:
         request = {
             'get': session.get,
             'post': session.post,
         }
-        
+
         await self.limiter.wait()
 
         if (
@@ -143,5 +143,3 @@ class AsyncAPIRequest:
         self.resp_received = 0
 
         return resp_li
-
-
