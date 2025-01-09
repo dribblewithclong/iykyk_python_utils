@@ -12,6 +12,6 @@
 
 3. install required libraries
 
-    $ ```conda activate iykyk_python_utils```
+    $ ```pip install -r ./iykyk_python_utils/requirements.txt```
 
 4. do some fucking crazy things
