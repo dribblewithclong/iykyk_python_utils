@@ -1,2 +1,5 @@
 rich==13.9.4
+aiohttp==3.11.11
+asynciolimiter==1.0.0
+
 requests==2.32.3
