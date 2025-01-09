@@ -176,3 +176,146 @@ class AsyncAPIRequest:
         self.error_request_params = list()
 
         return output_di
+
+    async def fetch_ingest(
+        self,
+        session: aiohttp.ClientSession,
+        request_params: dict,
+        ingest_func: callable,
+        method: str = 'get',
+        return_url: bool = False,
+        return_headers: bool = False,
+        return_payload: bool = False,
+        resp_as_text: bool = False,
+    ) -> None:
+        request = {
+            'get': session.get,
+            'post': session.post,
+        }
+
+        await self.limiter.wait()
+
+        if (
+            self.req_made % 32 == 0
+        ) & (
+            self.req_made > 0
+        ):
+            self.logging.info(
+                f'requests made: {self.req_made}'
+            )
+        if (
+            self.resp_received % 32 == 0
+        ) & (
+            self.resp_received > 0
+        ):
+            self.logging.info(
+                f'response received: {self.resp_received}'
+            )
+
+        self.req_made += 1
+        resp = await request[method](
+            url=request_params.get('url'),
+            headers=request_params.get('headers'),
+            json=request_params.get('payload'),
+        )
+        status_code = resp.status
+        self.resp_received += 1
+
+        if status_code in self.succeed_codes:
+            if resp_as_text:
+                resp_json = {
+                    'data': await resp.content.read(),
+                }
+            else:
+                resp_json = await resp.json()
+
+            resp_json['request_params'] = {}
+            if return_url:
+                resp_json['request_params']['url'] \
+                    = request_params.get('url')
+            if return_headers:
+                resp_json['request_params']['headers'] \
+                    = request_params.get('headers')
+            if return_payload:
+                resp_json['request_params']['payload'] \
+                    = request_params.get('payload')
+
+            ingest_func(resp_json)
+        else:
+            self.error_request_params.append(
+                {
+                    'code': status_code,
+                    'url': request_params.get('url'),
+                    'headers': request_params.get('headers'),
+                    'payload': request_params.get('payload'),
+                }
+            )
+
+    async def fetchall_ingest(
+        self,
+        request_params_li: list,
+        ingest_func: callable,
+        method: str = 'get',
+        cookies: dict = None,
+        return_url: bool = False,
+        return_headers: bool = False,
+        return_payload: bool = False,
+        resp_as_text: bool = False,
+    ) -> dict:
+        async with aiohttp.ClientSession(
+            cookies=cookies,
+        ) as session:
+            self.logging.info(
+                f'total requests ahead: {len(request_params_li)}'
+            )
+
+            await asyncio.gather(
+                *(
+                    self.fetch_ingest(
+                        session=session,
+                        request_params=params,
+                        ingest_func=ingest_func,
+                        method=method,
+                        return_url=return_url,
+                        return_headers=return_headers,
+                        return_payload=return_payload,
+                        resp_as_text=resp_as_text,
+                    ) for params in request_params_li
+                )
+            )
+
+            return {
+                'error_request_params': self.error_request_params,
+            }
+
+    def ingest_all_resp(
+        self,
+        request_params_li: list,
+        ingest_func: callable,
+        method: str = 'get',
+        cookies: dict = None,
+        return_url: bool = False,
+        return_headers: bool = False,
+        return_payload: bool = False,
+        resp_as_text: bool = False,
+    ) -> dict:
+        output_di = asyncio.run(
+            self.fetchall_ingest(
+                request_params_li,
+                ingest_func,
+                method,
+                cookies,
+                return_url,
+                return_headers,
+                return_payload,
+                resp_as_text,
+            )
+        )
+
+        self.req_made = 0
+        self.resp_received = 0
+
+        del self.error_request_params
+        self.error_request_params = list()
+
+        return output_di
