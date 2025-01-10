@@ -1,5 +1,7 @@
 rich==13.9.4
 aiohttp==3.11.11
 asynciolimiter==1.0.0
+awscli-local==0.22.0
+awscli==1.36.36
 
 requests==2.32.3
